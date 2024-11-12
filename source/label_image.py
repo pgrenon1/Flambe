@@ -9,7 +9,7 @@ import time
 model = ViTForImageClassification.from_pretrained("./vit-base-flambe")
 processor = ViTImageProcessor.from_pretrained("google/vit-base-patch16-224-in21k")
 
-def predict_and_label_image(image_path):
+def label_image(image_path):
     # Load and preprocess the image
     image = ImagePIL.open(image_path).convert("RGB")
     inputs = processor(images=image, return_tensors="pt").to(model.device)
@@ -35,8 +35,8 @@ def predict_and_label_image(image_path):
     draw.text(text_position, label, font=font, fill="white")
     
     # Display or save the labeled image
-    image.show() 
+    # image.show() 
     image.save(image_path)
     return image
 
-predict_and_label_image("./data/split/forward/forward1_0002.jpg")
+label_image("./data/split/forward/forward1_0002.jpg")
