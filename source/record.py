@@ -5,8 +5,8 @@ import numpy as np
 
 # Define directories for each arrow key
 directories = {
-    "up": "frames/up",
-    "down": "frames/down",
+    "up": "frames/forward",
+    "down": "frames/back",
     "left": "frames/left",
     "right": "frames/right"
 }
@@ -16,17 +16,21 @@ for direction, path in directories.items():
     os.makedirs(path, exist_ok=True)
 
 # Initialize the webcam
-cap = cv2.VideoCapture(4)
+camera_index = 4  # Default camera index, can be updated as needed
+cap = cv2.VideoCapture(camera_index)
 
 # Check if the webcam is opened successfully
 if not cap.isOpened():
-    print("Error: Could not open webcam.")
+    print(f"Error: Could not open webcam at index {camera_index}. Please check the device connection and index.")
     exit()
 
-print("Press arrow keys to save blended batches. Press 'q' to quit.")
+print("Press arrow keys to save blended batches. Press 'Enter' or 'Space' to proceed.")
 
 frame_count = 0
 batch_size = 5  # Number of frames to blend in a batch
+if batch_size <= 0:
+    raise ValueError("batch_size must be greater than 0.")
+
 current_batch = None
 frames_in_batch = 0
 active_key = None  # Track the currently pressed key
@@ -43,9 +47,9 @@ def on_press(key):
             active_key = "left"
         elif key == keyboard.Key.right:
             active_key = "right"
-        elif key.char == 'q':  # Quit on 'q'
-            print("Quitting...")
-            return False
+        elif key == keyboard.Key.enter or key == keyboard.Key.space:
+            print("Program terminated by user.")
+            os._exit(0)  # Force quit the program
     except AttributeError:
         pass
 
@@ -67,6 +71,11 @@ try:
 
         # Display the frame
         cv2.imshow("Webcam", frame)
+
+        # Check if the user closed the window
+        if cv2.getWindowProperty("Webcam", cv2.WND_PROP_VISIBLE) < 1:
+            print("Webcam window closed. Terminating program.")
+            break
 
         # Add the frame to the current batch if an arrow key is active
         if active_key in directories:
@@ -96,7 +105,9 @@ except KeyboardInterrupt:
     print("\nProgram interrupted.")
 
 finally:
-    # Release the webcam and close all OpenCV windows
+    try:
+        listener.stop()
+    except Exception as e:
+        print(f"Error stopping listener: {e}")
     cap.release()
     cv2.destroyAllWindows()
-    listener.stop()
