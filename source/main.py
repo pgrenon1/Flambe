@@ -4,18 +4,34 @@ import sys
 import os
 
 def start_recording():
-    record_script_path = os.path.join('source', 'record.py')
+    record_script_path = 'record.py'
+    # Disable both buttons before starting process
+    record_button.config(state='disabled')
+    train_button.config(state='disabled')
+    
     try:
         subprocess.run([sys.executable, record_script_path], check=True)
     except subprocess.CalledProcessError as e:
         print(f"Error running record script: {e}")
+    finally:
+        # Re-enable both buttons after process completes
+        record_button.config(state='normal')
+        train_button.config(state='normal')
 
 def start_training():
-    train_script_path = os.path.join('source', 'train.py')
+    train_script_path = 'train.py'
+    # Disable both buttons before starting process
+    record_button.config(state='disabled')
+    train_button.config(state='disabled')
+    
     try:
         subprocess.run([sys.executable, train_script_path], check=True)
     except subprocess.CalledProcessError as e:
         print(f"Error running training script: {e}")
+    finally:
+        # Re-enable both buttons after process completes
+        record_button.config(state='normal')
+        train_button.config(state='normal')
 
 # Create the main window
 root = tk.Tk()
