@@ -6,13 +6,17 @@ from PIL import ImageFont as ImageFontPIL
 import numpy as np
 import torch
 from collections import Counter
+from pythonosc import udp_client
+
 
 # Load model and processor
 model = ViTForImageClassification.from_pretrained("./vit-base-flambe")
 processor = ViTImageProcessor.from_pretrained("google/vit-base-patch16-224-in21k")
+# Set up OSC client to send data to Unreal Engine
+client = udp_client.SimpleUDPClient("127.0.0.1", 8000)
 
 # Video labeling function
-def label_video(video_path, output_path, frame_count=50, min_occurrences_ratio=30):
+def label_video(video_path, output_path, frame_count=50, min_occurrences_ratio=0.9):
     cap = cv2.VideoCapture(video_path)
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -65,12 +69,23 @@ def label_video(video_path, output_path, frame_count=50, min_occurrences_ratio=3
             draw.rectangle(textbox_position, fill="black")
             draw.text(text_position, most_common_label, font=font, fill="white")
 
+            # Print a message when a label is added
+            # print(f"Label added: {most_common_label}")
+            # Send a value to control movement
+            client.send_message("/direction", {most_common_label})
+
         # Convert back to BGR and write to output video
         frame = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
         out.write(frame)
+        
+        # Display the frame
+        cv2.imshow('Labeled Video', frame)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
     
     cap.release()
     out.release()
+    cv2.destroyAllWindows()
 
 # Usage
-label_video("./data/raw/neutral_full.mp4", "labeled_output4.mp4", frame_count=50, min_occurrences_ratio=0.9)
+label_video("./data/raw/right_full.mp4", "labeled_output4.mp4", frame_count=50, min_occurrences_ratio=0.9)
