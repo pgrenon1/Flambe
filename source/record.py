@@ -2,6 +2,14 @@ import cv2
 import os
 from pynput import keyboard
 import numpy as np
+import argparse
+from camera_utils import initialize_camera
+
+# Add at the start of the file, before other initialization
+parser = argparse.ArgumentParser()
+parser.add_argument('--camera-index', type=int, default=0,
+                   help='Index of the camera to use')
+args = parser.parse_args()
 
 # Define directories for each arrow key
 directories = {
@@ -15,13 +23,9 @@ directories = {
 for direction, path in directories.items():
     os.makedirs(path, exist_ok=True)
 
-# Initialize the webcam
-camera_index = 4  # Default camera index, can be updated as needed
-cap = cv2.VideoCapture(camera_index)
-
-# Check if the webcam is opened successfully
-if not cap.isOpened():
-    print(f"Error: Could not open webcam at index {camera_index}. Please check the device connection and index.")
+# Initialize the webcam using the utility function
+cap, success = initialize_camera(args.camera_index)
+if not success:
     exit()
 
 print("Press arrow keys to save blended batches. Press 'Enter' or 'Space' to proceed.")
