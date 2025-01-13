@@ -150,7 +150,7 @@ def main():
         return
     
     # Create window and set mouse callback
-    window_name = 'Brightness Detector'
+    window_name = 'Flambé'
     cv2.namedWindow(window_name)
     
     # Initialize filter system
@@ -217,8 +217,8 @@ def main():
             
             # Handle key presses
             key = cv2.waitKeyEx(1)
-            if key == ord('q') or \
-               cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE) < 1:
+            print(key)
+            if key == ord('q'):  # Quit on 'q'
                 break
             elif key == ord('f'):
                 state['show_filtered'] = not state['show_filtered']
@@ -226,6 +226,10 @@ def main():
                 image_filter.prev_filter()
             elif key in [83, 2555904]:  # Right arrow
                 image_filter.next_filter()
+            elif key in [82, 2621440]:  # Down arrow
+                state['threshold'] = min(1.0, state['threshold'] - 0.05)
+            elif key in [84, 2490368]:  # Up arrow
+                state['threshold'] = max(0.0, state['threshold'] + 0.05)
                 
     finally:
         cap.release()
