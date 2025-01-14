@@ -1,11 +1,9 @@
 import tkinter as tk
 from tkinter import ttk
-import subprocess
-import sys
-import os
-import signal
 from camera_utils import detect_cameras
 from ip_camera_dialog import IPCameraDialog
+from brightness_detector import BrightnessDetector
+from socket_connection import SocketServer
 
 class FlambeApp:
     def __init__(self, root):
@@ -13,6 +11,9 @@ class FlambeApp:
         self.setup_state()
         self.setup_ui()
         
+        # Initialize socket server
+        self.socket = None  # Initialize socket as None
+    
     def setup_window(self, root):
         """Initialize the main window"""
         self.root = root
@@ -22,11 +23,12 @@ class FlambeApp:
         # Create main frame
         self.frame = tk.Frame(root, padx=20, pady=20)
         self.frame.place(relx=0.5, rely=0.5, anchor='center')
+        self.resize_window_to_content()
     
     def setup_state(self):
         """Initialize application state"""
-        self.current_process = None
-        self.brightness_running = False
+        self.detector = None
+        self.update_id = None
     
     def setup_ui(self):
         """Setup the user interface"""
@@ -71,9 +73,12 @@ class FlambeApp:
     
     def setup_buttons(self):
         """Setup control buttons"""
+        button_frame = tk.Frame(self.frame)
+        button_frame.pack(pady=10)
+        
         # Brightness detection button
         self.brightness_button = tk.Button(
-            self.frame,
+            button_frame,
             text="Start Flambé",
             command=self.toggle_brightness_detection,
             width=20,
@@ -81,38 +86,66 @@ class FlambeApp:
             font=('Arial', 12),
             fg="green"
         )
-        self.brightness_button.pack(pady=(5, 20))
+        self.brightness_button.pack(pady=5)
+        
+        # Server control button
+        self.server_button = tk.Button(
+            button_frame,
+            text="Start Server",
+            command=self.toggle_server,
+            width=20,
+            height=2,
+            font=('Arial', 12),
+            fg="green"
+        )
+        self.server_button.pack(pady=5)
     
     def start_brightness_detection(self):
-        """Start brightness detection process"""
+        """Start brightness detection"""
         camera_selection = self.selected_camera.get()
         camera_arg = camera_selection.split(':')[0]
         
         try:
-            self.current_process = subprocess.Popen(
-                [sys.executable, 'source/brightness_detector.py', 
-                 '--camera-index', camera_arg],
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0
-            )
-            self.brightness_running = True
-            
-        except subprocess.CalledProcessError as e:
-            print(f"Error running brightness detection: {e}")
+            self.detector = BrightnessDetector(camera_arg)
+            self.detector.start()
+            self.update_detector()
+        except Exception as e:
+            print(f"Error starting brightness detection: {e}")
+            self.stop_brightness_detection()
     
     def stop_brightness_detection(self):
-        """Stop brightness detection process"""
-        self.brightness_running = False
-        if self.current_process:
-            if os.name == 'nt':
-                self.current_process.send_signal(signal.CTRL_BREAK_EVENT)
-            else:
-                self.current_process.terminate()
-            self.current_process.wait()
-            self.current_process = None
+        """Stop brightness detection"""
+        if self.detector:
+            self.detector.stop()
+            self.detector = None
+        if self.update_id:
+            self.root.after_cancel(self.update_id)
+            self.update_id = None
+    
+    def update_detector(self):
+        """Update the detector in the main GUI thread"""
+        # Check if detector exists and is running
+        if not self.detector or not self.detector.is_running:
+            self.stop_brightness_detection()
+            self.brightness_button.config(text="Start Flambé", fg="green")
+            return
+            
+        # Try to update detector, stop if update fails
+        if not self.detector.update():
+            self.stop_brightness_detection()
+            self.brightness_button.config(text="Start Flambé", fg="green")
+            return
+            
+        # Get and send the current vector if server exists
+        if self.socket and self.socket.server:
+            vector = self.detector.get_vector()
+            self.socket.send_vector(vector[0], vector[1])
+            
+        self.update_id = self.root.after(10, self.update_detector)
     
     def toggle_brightness_detection(self):
         """Toggle brightness detection on/off"""
-        if self.brightness_running:
+        if self.detector:
             self.stop_brightness_detection()
             self.brightness_button.config(text="Start Flambé", fg="green")
         else:
@@ -152,6 +185,20 @@ class FlambeApp:
     def cleanup(self):
         """Clean up resources"""
         self.stop_brightness_detection()
+        if self.socket:
+            self.socket.stop()
+        self.root.destroy()
+    
+    def toggle_server(self):
+        """Toggle socket server on/off"""
+        if self.socket and self.socket.server:
+            self.socket.stop()
+            self.socket = None
+            self.server_button.config(text="Start Server", fg="green")
+        else:
+            self.socket = SocketServer()
+            self.socket.start()
+            self.server_button.config(text="Stop Server", fg="red")
 
 def main():
     root = tk.Tk()

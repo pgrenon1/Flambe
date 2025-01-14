@@ -1,6 +1,6 @@
 import socketio
-import eventlet
-import eventlet.wsgi
+import threading
+from wsgiref.simple_server import make_server
 
 class SocketServer:
     def __init__(self, host='127.0.0.1', port=12345):
@@ -10,6 +10,7 @@ class SocketServer:
         self.host = host
         self.port = port
         self.server = None
+        self.thread = None
         
         # Setup event handlers
         @self.sio.event
@@ -24,22 +25,29 @@ class SocketServer:
     def start(self):
         """Start the socket server in a new thread"""
         print(f"Starting server on {self.host}:{self.port}")
-        eventlet.spawn(self.run_server)
+        print("Spawning server thread...")
+        self.thread = threading.Thread(target=self.run_server)
+        self.thread.daemon = True
+        self.thread.start()
+        print("Server thread spawned")
     
     def run_server(self):
         """Internal method to run the server"""
+        print("Server thread starting...")
         try:
-            eventlet.wsgi.server(
-                eventlet.listen((self.host, self.port)), 
-                self.app
-            )
+            self.server = make_server(self.host, self.port, self.app)
+            print("Server is running")
+            self.server.serve_forever()
         except Exception as e:
             print(f"Server error: {e}")
+            self.server = None
     
     def stop(self):
         """Stop the socket server"""
         if self.server:
-            self.server.stop()
+            print("Stopping server...")
+            self.server.shutdown()
+            self.server = None
             print("Server stopped")
     
     def send_vector(self, x: float, y: float):
@@ -50,5 +58,6 @@ class SocketServer:
             x: X component of the vector
             y: Y component of the vector
         """
-        print(f"Sending vector: ({x}, {y})")
-        self.sio.emit('vector', {'x': x, 'y': y})
+        if self.server:
+            print(f"Sending vector: ({x}, {y})")
+            self.sio.emit('vector', {'x': x, 'y': y})
