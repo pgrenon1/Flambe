@@ -11,6 +11,9 @@ class IPCameraDialog:
         self.dialog.transient(parent)
         self.dialog.grab_set()
         
+        # Set icon
+        self.dialog.iconbitmap('./assets/fire.ico')
+        
         # Center the dialog
         window_width = 300
         window_height = 200
@@ -26,7 +29,7 @@ class IPCameraDialog:
         
         # IP Address entry
         ttk.Label(frame, text="IP Address:").pack(anchor=tk.W)
-        self.address_var = tk.StringVar(value="192.168.1.100")
+        self.address_var = tk.StringVar(value="192.168.0.197")
         self.address_entry = ttk.Entry(frame, textvariable=self.address_var)
         self.address_entry.pack(fill=tk.X, pady=(0, 10))
         

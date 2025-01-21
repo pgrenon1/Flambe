@@ -1,6 +1,5 @@
 import cv2
-import os
-import platform
+from cv2_enumerate_cameras import enumerate_cameras
 
 def initialize_camera(camera_index):
     """
@@ -12,7 +11,7 @@ def initialize_camera(camera_index):
     Returns:
         tuple: (cv2.VideoCapture, bool) - The camera object and success status
     """
-    cap = cv2.VideoCapture(camera_index)
+    cap = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
     
     # Check if the webcam is opened successfully
     if not cap.isOpened():
@@ -57,30 +56,3 @@ def connect_ip_camera(ip_address, port="8080"):
     except Exception as e:
         print(f"Error connecting to IP camera: {str(e)}")
         return None, False
-
-def detect_cameras():
-    """
-    Detect all available cameras connected to the system.
-    
-    Returns:
-        list: List of tuples containing (index, name) of available cameras
-    """
-    available_cameras = []
-    
-    # Test camera indices from 0 to 9
-    for index in range(10):
-        cap = cv2.VideoCapture(index)
-        if not cap.isOpened():
-            continue
-            
-        if cap.read()[0]:
-            camera_name = f"Camera {index}"
-            available_cameras.append((index, camera_name))
-            
-        cap.release()
-    
-    # If no cameras found, add default camera
-    if not available_cameras:
-        available_cameras.append((0, "Default Camera"))
-        
-    return sorted(available_cameras) 

@@ -1,11 +1,11 @@
 import socketio
-import threading
-from wsgiref.simple_server import make_server
+import eventlet
+import eventlet.wsgi
 
 class SocketServer:
     def __init__(self, host='127.0.0.1', port=12345):
         # Create Socket.IO server
-        self.sio = socketio.Server()
+        self.sio = socketio.Server(async_mode='eventlet')
         self.app = socketio.WSGIApp(self.sio)
         self.host = host
         self.port = port
@@ -26,18 +26,16 @@ class SocketServer:
         """Start the socket server in a new thread"""
         print(f"Starting server on {self.host}:{self.port}")
         print("Spawning server thread...")
-        self.thread = threading.Thread(target=self.run_server)
-        self.thread.daemon = True
-        self.thread.start()
+        self.thread = eventlet.spawn(self.run_server)
         print("Server thread spawned")
     
     def run_server(self):
         """Internal method to run the server"""
         print("Server thread starting...")
         try:
-            self.server = make_server(self.host, self.port, self.app)
+            sock = eventlet.listen((self.host, self.port))
+            self.server = eventlet.wsgi.server(sock, self.app, log_output=False)
             print("Server is running")
-            self.server.serve_forever()
         except Exception as e:
             print(f"Server error: {e}")
             self.server = None
@@ -46,7 +44,9 @@ class SocketServer:
         """Stop the socket server"""
         if self.server:
             print("Stopping server...")
-            self.server.shutdown()
+            if self.thread:
+                self.thread.kill()
+                self.thread = None
             self.server = None
             print("Server stopped")
     
