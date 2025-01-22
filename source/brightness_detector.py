@@ -8,16 +8,22 @@ import os
 def set_window_icon(window_name, icon_path):
     """Set the icon for an OpenCV window using Win32 API"""
     try:
-        # Get the window handle
-        hwnd = ctypes.windll.user32.FindWindowW(None, window_name)
-        if hwnd != 0:  # If window found
-            # Load the icon
-            icon_handle = ctypes.windll.user32.LoadImageW(
-                0, icon_path, 1, 0, 0, 0x00000010 | 0x00000040)
-            if icon_handle:
-                # Set the icon
-                ctypes.windll.user32.SendMessageW(hwnd, 0x0080, 0, icon_handle)  # SETICON
-                ctypes.windll.user32.SendMessageW(hwnd, 0x0080, 1, icon_handle)  # SETICON
+        if os.name == 'nt':  # Windows
+            hwnd = ctypes.windll.user32.FindWindowW(None, window_name)
+            if hwnd != 0:  # If window found
+                # Load the icon
+                icon_handle = ctypes.windll.user32.LoadImageW(
+                    0, icon_path, 1, 0, 0, 0x00000010 | 0x00000040)
+                if icon_handle:
+                    # Set the icon
+                    ctypes.windll.user32.SendMessageW(hwnd, 0x0080, 0, icon_handle)  # SETICON
+                    ctypes.windll.user32.SendMessageW(hwnd, 0x0080, 1, icon_handle)  # SETICON
+        elif os.name == 'posix':  # Linux/Unix/macOS
+            # On Linux/Unix, OpenCV windows don't support custom icons directly
+            # Could potentially use X11/Xlib but this requires additional dependencies
+            pass
+        else:
+            print(f"Unsupported operating system: {os.name}")
     except Exception as e:
         print(f"Failed to set window icon: {e}")
 
@@ -122,19 +128,19 @@ class BrightnessDetector:
 
     def handle_key(self, key):
         if key == ord('q'):
-            self.command_queue.put("STOP")  # Send STOP when quitting
+            self.command_queue.put("STOP")
             return False
         elif key == ord('f'):
             self.state['show_filtered'] = not self.state['show_filtered']
         elif key == ord('s'):
             self.calibrate(self.cap.read()[1])
-        elif key in [81, 2424832]:  # Left arrow
+        elif key in [81, 2424832, 63234]:  # Left arrow (including Linux codes)
             self.image_filter.prev_filter()
-        elif key in [83, 2555904]:  # Right arrow
+        elif key in [83, 2555904, 63235]:  # Right arrow
             self.image_filter.next_filter()
-        elif key in [82, 2621440]:  # Down arrow
+        elif key in [82, 2621440, 63233]:  # Down arrow
             self.state['threshold'] = max(0.0, self.state['threshold'] - 0.05)
-        elif key in [84, 2490368]:  # Up arrow
+        elif key in [84, 2490368, 63232]:  # Up arrow
             self.state['threshold'] = min(1.0, self.state['threshold'] + 0.05)
         return True
 
@@ -240,7 +246,7 @@ class BrightnessDetector:
             cv2.imshow(self.window_name, display)
 
             # Handle keyboard input
-            key = cv2.waitKeyEx(1)
+            key = cv2.waitKeyEx(1) if os.name == 'nt' else cv2.waitKey(1)
             if key != -1 and not self.handle_key(key):
                 break
 
