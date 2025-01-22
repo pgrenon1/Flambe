@@ -11,14 +11,30 @@ def initialize_camera(camera_index):
     Returns:
         tuple: (cv2.VideoCapture, bool) - The camera object and success status
     """
-    cap = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
+    # Try different backends in order
+    backends = [
+        (cv2.CAP_DSHOW, "DirectShow"),
+        (cv2.CAP_MSMF, "Media Foundation"),
+        (cv2.CAP_ANY, "Any"),
+        (None, "Default")
+    ]
     
-    # Check if the webcam is opened successfully
-    if not cap.isOpened():
-        print(f"Error: Could not open webcam at index {camera_index}. Please check the device connection and index.")
-        return cap, False
-        
-    return cap, True 
+    for backend, name in backends:
+        try:
+            if backend is None:
+                cap = cv2.VideoCapture(camera_index)
+            else:
+                cap = cv2.VideoCapture(camera_index, backend)
+            
+            if cap.isOpened():
+                print(f"Successfully opened camera with {name} backend")
+                return cap, True
+                
+        except Exception as e:
+            print(f"Failed to open camera with {name} backend: {e}")
+            continue
+            
+    return None, False
 
 def connect_ip_camera(ip_address, port="8080"):
     """
