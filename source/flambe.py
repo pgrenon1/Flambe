@@ -236,16 +236,16 @@ class FlambeApp:
         self.detector_running = False
         
         # Clean up process
-        if self.detector_process:
+        if self.detector_process is not None:
             self.detector_process.terminate()
             self.detector_process.join()
             self.detector_process = None
         
         # Clean up queues
-        if hasattr(self, 'command_queue'):
+        if self.command_queue is not None:
             self.command_queue.close()
             self.command_queue = None
-        if hasattr(self, 'vector_queue'):
+        if self.vector_queue is not None:
             self.vector_queue.close()
             self.vector_queue = None
         
@@ -343,7 +343,7 @@ class FlambeApp:
     
     def shutdown_servers(self):
         """Shutdown the web server"""
-        if hasattr(self, 'server'):
+        if self.server is not None:
             self.server.shutdown()
     
     def cleanup_server_resources(self):
