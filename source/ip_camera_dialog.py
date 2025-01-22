@@ -12,7 +12,7 @@ class IPCameraDialog:
         self.dialog.grab_set()
         
         # Set icon
-        self.dialog.iconbitmap('./assets/fire.ico')
+        self.setup_window()
         
         # Center the dialog
         window_width = 300
@@ -75,4 +75,21 @@ class IPCameraDialog:
     
     def cancel(self):
         """Close dialog without saving"""
-        self.dialog.destroy() 
+        self.dialog.destroy()
+
+    def setup_window(self):
+        """Setup the dialog window"""
+        self.title("IP Camera Connection")
+        self.resizable(False, False)
+        
+        # Set icon (cross-platform)
+        try:
+            # Windows
+            self.iconbitmap('./assets/fire.ico')
+        except:
+            try:
+                # Linux/Unix
+                icon_img = tk.PhotoImage(file='./assets/fire.png')
+                self.iconphoto(True, icon_img)
+            except:
+                print("Warning: Could not load dialog icon") 

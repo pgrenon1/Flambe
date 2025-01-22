@@ -36,8 +36,17 @@ class FlambeApp:
         self.root.title("Flambé Launcher")
         self.root.minsize(250, 250)
         
-        # Set icon
-        self.root.iconbitmap('./assets/fire.ico')
+        # Set icon (cross-platform)
+        try:
+            # Windows
+            self.root.iconbitmap('./assets/fire.ico')
+        except:
+            try:
+                # Linux/Unix
+                icon_img = tk.PhotoImage(file='./assets/fire.png')
+                self.root.iconphoto(True, icon_img)
+            except:
+                print("Warning: Could not load application icon")
         
         # Create main frame
         self.frame = tk.Frame(root, padx=20, pady=20)
@@ -446,7 +455,7 @@ class FlambeApp:
     def detect_cameras(self):
         """Detect cameras and update UI"""
         
-        self.cameras = enumerate_cameras(cv2.CAP_DSHOW)
+        self.cameras = enumerate_cameras(cv2.CAP_ANY)
 
         # setup the camera options based on camerainfos
         self.camera_options = [(info.index, info.name) for info in self.cameras]

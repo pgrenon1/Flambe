@@ -66,8 +66,8 @@ class BrightnessDetector:
         self.setup_state(camera_arg, command_queue, vector_queue)
         cv2.namedWindow(self.window_name, cv2.WINDOW_NORMAL)
         cv2.setMouseCallback(self.window_name, self.on_mouse)
-        icon_path = os.path.abspath('./assets/fire.ico')
-        set_window_icon(self.window_name, icon_path)
+        # icon_path = os.path.abspath('./assets/fire.ico')
+        # set_window_icon(self.window_name, icon_path)
         self.setup_camera()
 
     def setup_state(self, camera_arg, command_queue, vector_queue):
