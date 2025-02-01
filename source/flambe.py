@@ -1,6 +1,4 @@
-import eventlet
 import socketio
-import eventlet.wsgi
 import threading
 import tkinter as tk
 from tkinter import ttk
@@ -10,9 +8,12 @@ from dataclasses import dataclass
 from datetime import datetime
 import multiprocessing
 from flask import Flask
-from werkzeug.serving import make_server
 from cv2_enumerate_cameras import enumerate_cameras
 import cv2
+import sys
+import logging
+import os
+from logging_config import setup_module_logger
 
 @dataclass
 class Connection:
@@ -24,8 +25,39 @@ class Connection:
     path: str
     query_string: str
     
+def setup_logging():
+    """Setup logging configuration"""
+    # Get the executable's directory or current directory
+    if getattr(sys, 'frozen', False):
+        app_dir = os.path.dirname(sys.executable)
+    else:
+        app_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    log_file = os.path.join(app_dir, 'flambe.log')
+    
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(log_file),
+            logging.StreamHandler()
+        ]
+    )
+    
+    # Create logger
+    logger = logging.getLogger('flambe')
+    return logger
+
 class FlambeApp:
     def __init__(self, root):
+        self.logger = setup_module_logger('flambe')
+        self.logger.info("Starting Flambe application")
+        
+        if hasattr(sys, '_MEIPASS'):
+            self.logger.info("Running as frozen executable")
+            multiprocessing.freeze_support()
+            multiprocessing.set_start_method('spawn', force=True)
+        
         self.setup_window(root)
         self.setup_state()
         self.setup_ui()
@@ -33,7 +65,7 @@ class FlambeApp:
     def setup_window(self, root):
         """Initialize the main window"""
         self.root = root
-        self.root.title("Flambé Launcher")
+        self.root.title("flambe Launcher")
         self.root.minsize(250, 250)
         
         # Set icon (cross-platform)
@@ -46,7 +78,7 @@ class FlambeApp:
                 icon_img = tk.PhotoImage(file='./assets/fire.png')
                 self.root.iconphoto(True, icon_img)
             except:
-                print("Warning: Could not load application icon")
+                self.logger.warning("Could not load application icon")
         
         # Create main frame
         self.frame = tk.Frame(root, padx=20, pady=20)
@@ -131,35 +163,29 @@ class FlambeApp:
         self.port_entry = ttk.Entry(port_frame, textvariable=self.port_var)
         self.port_entry.pack(side=tk.LEFT, padx=(5, 0), fill="x", expand=True)
         
-        # Connection counter
+        # Server status
+        status_frame = tk.Frame(server_frame)
+        status_frame.pack(fill="x", pady=5)
+        tk.Label(status_frame, text="Status:").pack(side=tk.LEFT)
+        self.status_var = tk.StringVar(value="Stopped")
+        self.status_label = tk.Label(status_frame, textvariable=self.status_var, fg="red")
+        self.status_label.pack(side=tk.LEFT, padx=(5, 0))
+        
+        # Connection count
         conn_frame = tk.Frame(server_frame)
         conn_frame.pack(fill="x", pady=2)
         tk.Label(conn_frame, text="Connections:").pack(side=tk.LEFT)
         self.conn_var = tk.StringVar(value="0")
         tk.Label(conn_frame, textvariable=self.conn_var).pack(side=tk.LEFT, padx=(5, 0))
-        
-        # Connection list
-        conn_list_frame = tk.LabelFrame(server_frame, text="Active Connections", padx=5, pady=5)
-        conn_list_frame.pack(fill="x", pady=(5, 0))
-        self.conn_text = tk.Text(conn_list_frame, height=4, width=40)
-        self.conn_text.configure(state='disabled')  # Make it read-only
-        self.conn_text.pack(fill="x")
     
-    def update_connection_display(self):
-        """Update the connection list display"""
-        self.conn_text.configure(state='normal')  # Temporarily enable for update
-        self.conn_text.delete(1.0, tk.END)
-        for conn in self.connections.values():
-            time_str = conn.connected_at.strftime("%H:%M:%S")
-            self.conn_text.insert(tk.END, f"IP: {conn.ip}\n")
-            self.conn_text.insert(tk.END, f"Connected at: {time_str}\n")
-            self.conn_text.insert(tk.END, f"Browser: {conn.user_agent}\n")
-            self.conn_text.insert(tk.END, f"HTTP Version: {conn.http_version}\n")
-            self.conn_text.insert(tk.END, f"Path: {conn.path}\n")
-            if conn.query_string:
-                self.conn_text.insert(tk.END, f"Query: {conn.query_string}\n")
-            self.conn_text.insert(tk.END, "-" * 40 + "\n")
-        self.conn_text.configure(state='disabled')  # Make read-only again
+    def update_server_status(self):
+        """Update the server status display"""
+        if self.server_running:
+            self.status_var.set("Running")
+            self.status_label.config(fg="green")
+        else:
+            self.status_var.set("Stopped")
+            self.status_label.config(fg="red")
         self.conn_var.set(str(len(self.connections)))
     
     def setup_buttons(self):
@@ -170,7 +196,7 @@ class FlambeApp:
         # Brightness detection button
         self.brightness_button = tk.Button(
             button_frame,
-            text="Start Flambé",
+            text="Start flambe",
             command=self.toggle_brightness_detection,
             width=20,
             height=2,
@@ -224,11 +250,12 @@ class FlambeApp:
             )
             self.detector_process.start()
             
+            
             self.detector_running = True
-            self.brightness_button.config(text="Stop Flambé", fg="red")
+            self.brightness_button.config(text="Stop flambe", fg="red")
             self.update_detector()
         except Exception as e:
-            print(f"Error starting brightness detection: {e}")
+            self.logger.error(f"Error starting brightness detection: {e}")
             self.stop_brightness_detection()
     
     def stop_brightness_detection(self):
@@ -249,7 +276,7 @@ class FlambeApp:
             self.vector_queue.close()
             self.vector_queue = None
         
-        self.brightness_button.config(text="Start Flambé", fg="green")
+        self.brightness_button.config(text="Start flambe", fg="green")
         self.calibrate_button.config(state="disabled")
     
     def update_detector(self):
@@ -262,7 +289,7 @@ class FlambeApp:
             if not self.command_queue.empty():
                 command = self.command_queue.get_nowait()
                 if command == "STOP":
-                    print("Received STOP signal from detector")
+                    self.logger.info("Received STOP signal from detector")
                     self.stop_brightness_detection()
                     return
 
@@ -270,10 +297,11 @@ class FlambeApp:
             while not self.vector_queue.empty():
                 vector = self.vector_queue.get_nowait()
                 if self.sio:
-                    print(f"Sending vector: ({vector[0]}, {vector[1]})")
+                    self.logger.info(f"Sending vector: ({vector[0]}, {vector[1]})")
                     self.sio.emit('vector', {'x': vector[0], 'y': vector[1]})
+                    
         except Exception as e:
-            print(f"Error in update_detector: {e}")
+            self.logger.error(f"Error in update_detector: {e}")
             self.stop_brightness_detection()
             return
 
@@ -325,34 +353,59 @@ class FlambeApp:
 
     def stop_server(self):
         """Stop the socket server and clean up resources"""
-        print("Stopping server...")
+        self.logger.info("Stopping server...")
         self.server_running = False
         
-        self.disconnect_all_clients()
-        self.shutdown_servers()
-        self.cleanup_server_resources()
-        self.reset_server_ui()
-        print("Server stopped")
+        try:
+            self.disconnect_all_clients()
+            self.shutdown_servers()
+            self.cleanup_server_resources()
+            self.reset_server_ui()
+            self.update_server_status()
+            self.logger.info("Server stopped successfully")
+        except Exception as e:
+            self.logger.error(f"Error stopping server: {e}", exc_info=True)
     
     def disconnect_all_clients(self):
         """Disconnect all connected Socket.IO clients"""
-        if self.sio:
-            for sid in list(self.connections.keys()):
-                self.sio.disconnect(sid)
-            self.sio.shutdown()
+        try:
+            if self.sio:
+                self.logger.info(f"Disconnecting {len(self.connections)} clients")
+                for sid in list(self.connections.keys()):
+                    self.logger.info(f"Disconnecting client {sid}")
+                    self.sio.disconnect(sid)
+            self.logger.info("All clients disconnected")
+        except Exception as e:
+            self.logger.error(f"Error disconnecting clients: {e}", exc_info=True)
     
     def shutdown_servers(self):
         """Shutdown the web server"""
-        if self.server is not None:
-            self.server.shutdown()
+        try:
+            if self.server is not None:
+                self.logger.info("Shutting down web server")
+                self.server.shutdown()
+                self.logger.info("Web server shutdown complete")
+        except Exception as e:
+            self.logger.error(f"Error shutting down web server: {e}", exc_info=True)
     
     def cleanup_server_resources(self):
         """Clean up server-related resources"""
-        if self.server_thread:
-            self.server_thread.join(timeout=1)
-        self.sio = None
-        self.app = None
-        self.server_thread = None
+        try:
+            if self.server_thread:
+                self.logger.info("Waiting for server thread to finish")
+                self.server_thread.join(timeout=1)
+                if self.server_thread.is_alive():
+                    self.logger.warning("Server thread did not finish within timeout")
+            if self.sio:
+                self.logger.info("Shutting down Socket.IO")
+                self.sio.shutdown()
+            self.sio = None
+            self.app = None
+            self.server = None
+            self.server_thread = None
+            self.logger.info("Server resources cleaned up")
+        except Exception as e:
+            self.logger.error(f"Error cleaning up server resources: {e}", exc_info=True)
     
     def reset_server_ui(self):
         """Reset UI elements to initial server-stopped state"""
@@ -360,29 +413,51 @@ class FlambeApp:
         self.ip_entry.config(state="normal")
         self.port_entry.config(state="normal")
         self.connections = {}
-        self.update_connection_display()
+        self.update_server_status()
     
     def start_server(self):
         """Initialize and start the socket server"""
-        host = self.ip_var.get()
-        port = int(self.port_var.get())
-        
-        self.setup_flask_app(host, port)
-        self.start_server_thread()
-        self.update_ui_for_server_start()
-        print("Server is running...")
+        try:
+            host = self.ip_var.get()
+            port = int(self.port_var.get())
+            
+            self.logger.info(f"Starting server on {host}:{port}")
+            self.setup_flask_app(host, port)
+            self.start_server_thread()
+            self.update_ui_for_server_start()
+            self.update_server_status()
+            self.logger.info("Server started successfully")
+        except Exception as e:
+            self.logger.error(f"Error starting server: {e}", exc_info=True)
+            self.stop_server()
     
     def setup_flask_app(self, host, port):
         """Setup Flask and Socket.IO server"""
-        flask_app = Flask(__name__)
-        self.sio = socketio.Server(async_mode='threading')
-        self.app = socketio.WSGIApp(self.sio, flask_app)
-        
-        self.connections = {}
-        self.setup_socketio_handlers()
-        self.setup_flask_routes(flask_app)
-        
-        self.server = make_server(host, port, self.app)
+        try:
+            flask_app = Flask(__name__)
+            
+            # Create Socket.IO server with basic configuration
+            self.logger.info("Creating Socket.IO server")
+            self.sio = socketio.Server(
+                async_mode='threading',  # Explicitly set async mode
+                cors_allowed_origins='*',
+                logger=self.logger,
+                engineio_logger=self.logger
+            )
+            
+            self.app = socketio.WSGIApp(self.sio, flask_app)
+            
+            self.connections = {}
+            self.setup_socketio_handlers()
+            self.setup_flask_routes(flask_app)
+            
+            from wsgiref.simple_server import make_server
+            self.logger.info("Creating server instance")
+            self.server = make_server(host, port, self.app)
+            self.logger.info("Server instance created")
+        except Exception as e:
+            self.logger.error(f"Error in setup_flask_app: {e}", exc_info=True)
+            raise
     
     def setup_socketio_handlers(self):
         """Setup Socket.IO event handlers"""
@@ -402,8 +477,8 @@ class FlambeApp:
         path = environ.get('PATH_INFO', 'unknown')
         query = environ.get('QUERY_STRING', '')
         
-        print(f"Client {sid} connected from {client_ip}")
-        print(f"User Agent: {user_agent}")
+        self.logger.info(f"Client {sid} connected from {client_ip}")
+        self.logger.info(f"User Agent: {user_agent}")
         
         self.connections[sid] = Connection(
             sid=sid,
@@ -415,22 +490,22 @@ class FlambeApp:
             query_string=query
         )
         
-        self.update_connection_display()
+        self.update_server_status()
         self.sio.emit('welcome', {'message': 'Welcome!'}, room=sid)
     
     def handle_client_disconnect(self, sid):
         """Handle client disconnection"""
         if sid in self.connections:
             conn = self.connections[sid]
-            print(f"Client {sid} disconnected (was connected from {conn.ip})")
+            self.logger.info(f"Client {sid} disconnected (was connected from {conn.ip})")
             del self.connections[sid]
-            self.update_connection_display()
+            self.update_server_status()
     
     def setup_flask_routes(self, flask_app):
         """Setup Flask routes"""
         @flask_app.route('/')
         def index():
-            return 'Flambé Server Running'
+            return 'flambe Server Running'
     
     def start_server_thread(self):
         """Start the server in a separate thread"""
@@ -484,9 +559,9 @@ class FlambeApp:
                 # Send calibrate command and wait for completion
                 self.command_queue.put("CALIBRATE")
                 self.command_queue.join()  # Wait for command to be processed
-                print("Calibrate command completed")
+                self.logger.info("Calibrate command completed")
             except Exception as e:
-                print(f"Error sending calibrate command: {e}")
+                self.logger.error(f"Error sending calibrate command: {e}")
 
 def main():
     root = tk.Tk()

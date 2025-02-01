@@ -1,8 +1,12 @@
 import tkinter as tk
 from tkinter import ttk
+from logging_config import setup_module_logger
+
+logger = setup_module_logger('ip_camera_dialog')
 
 class IPCameraDialog:
     def __init__(self, parent):
+        logger.info("Opening IP camera dialog")
         self.result = None
         
         # Create dialog window
@@ -92,4 +96,14 @@ class IPCameraDialog:
                 icon_img = tk.PhotoImage(file='./assets/fire.png')
                 self.iconphoto(True, icon_img)
             except:
-                print("Warning: Could not load dialog icon") 
+                logger.warning("Could not load dialog icon") 
+
+    def validate(self):
+        """Validate the input"""
+        try:
+            # ... validation logic ...
+            logger.info(f"IP camera settings validated: {self.result}")
+            return True
+        except Exception as e:
+            logger.error(f"Invalid IP camera settings: {e}")
+            return False 

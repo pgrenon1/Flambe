@@ -1,8 +1,7 @@
 opencv-python
 python-socketio
-eventlet
 flask
 numpy
 cv2-enumerate-cameras
 pyinstaller
-dnspython 
+dnspython

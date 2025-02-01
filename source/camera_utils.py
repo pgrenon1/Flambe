@@ -1,5 +1,8 @@
+from logging_config import setup_module_logger
 import cv2
 from cv2_enumerate_cameras import enumerate_cameras
+
+logger = setup_module_logger('camera_utils')
 
 def initialize_camera(camera_index):
     """
@@ -11,6 +14,7 @@ def initialize_camera(camera_index):
     Returns:
         tuple: (cv2.VideoCapture, bool) - The camera object and success status
     """
+    logger.info(f"Initializing camera with index {camera_index}")
     # Try different backends in order
     backends = [
         (cv2.CAP_DSHOW, "DirectShow"),
@@ -27,13 +31,14 @@ def initialize_camera(camera_index):
                 cap = cv2.VideoCapture(camera_index, backend)
             
             if cap.isOpened():
-                print(f"Successfully opened camera with {name} backend")
+                logger.info(f"Successfully opened camera with {name} backend")
                 return cap, True
                 
         except Exception as e:
-            print(f"Failed to open camera with {name} backend: {e}")
+            logger.error(f"Failed to open camera with {name} backend: {e}", exc_info=True)
             continue
             
+    logger.error(f"Failed to open camera {camera_index}")
     return None, False
 
 def connect_ip_camera(ip_address, port="8080"):
@@ -47,28 +52,30 @@ def connect_ip_camera(ip_address, port="8080"):
     Returns:
         tuple: (cv2.VideoCapture, bool) - The camera object and success status
     """
-    # Construct the URL for the IP Webcam stream
     url = f"http://{ip_address}:{port}/video"
-    
+    logger.info(f"Connecting to IP camera at {url}")
     try:
         # Try to connect to the IP camera
         cap = cv2.VideoCapture(url)
         
         # Test if connection is successful
-        if not cap.isOpened():
-            print(f"Error: Could not connect to IP camera at {url}")
+        success = cap.isOpened()
+        if success:
+            logger.info("Successfully connected to IP camera")
+        else:
+            logger.error("Failed to connect to IP camera")
             return cap, False
             
         # Try to read a test frame
         ret, frame = cap.read()
         if not ret:
-            print(f"Error: Could not read frame from IP camera at {url}")
+            logger.error(f"Error: Could not read frame from IP camera at {url}")
             cap.release()
             return cap, False
             
-        print(f"Successfully connected to IP camera at {url}")
+        logger.info(f"Successfully connected to IP camera at {url}")
         return cap, True
         
     except Exception as e:
-        print(f"Error connecting to IP camera: {str(e)}")
+        logger.error(f"Error connecting to IP camera: {e}", exc_info=True)
         return None, False

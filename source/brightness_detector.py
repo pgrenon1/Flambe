@@ -4,6 +4,9 @@ from camera_utils import initialize_camera, connect_ip_camera
 import multiprocessing
 import ctypes
 import os
+from logging_config import setup_module_logger
+
+logger = setup_module_logger('brightness_detector')
 
 def set_window_icon(window_name, icon_path):
     """Set the icon for an OpenCV window using Win32 API"""
@@ -23,9 +26,9 @@ def set_window_icon(window_name, icon_path):
             # Could potentially use X11/Xlib but this requires additional dependencies
             pass
         else:
-            print(f"Unsupported operating system: {os.name}")
+            logger.error(f"Unsupported operating system: {os.name}")
     except Exception as e:
-        print(f"Failed to set window icon: {e}")
+        logger.error(f"Failed to set window icon: {e}")
 
 class ImageFilter:
     def __init__(self):
@@ -58,17 +61,20 @@ class BrightnessDetector:
     @staticmethod
     def run_detector(camera_arg, command_queue, vector_queue):
         try:
+            logger.info(f"Starting detector with camera {camera_arg}")
             detector = BrightnessDetector(camera_arg, command_queue, vector_queue)
             detector.run()
         except Exception as e:
-            print(f"Detector error: {e}")
+            logger.error(f"Detector error: {e}", exc_info=True)
         finally:
+            logger.info("Detector stopping")
             try:
                 command_queue.put("STOP", block=False)
             except:
                 pass
 
     def __init__(self, camera_arg, command_queue, vector_queue):
+        logger.info("Initializing BrightnessDetector")
         self.setup_state(camera_arg, command_queue, vector_queue)
         cv2.namedWindow(self.window_name, cv2.WINDOW_NORMAL)
         cv2.setMouseCallback(self.window_name, self.on_mouse)
@@ -207,49 +213,58 @@ class BrightnessDetector:
         return distance <= self.state['radius']
 
     def run(self):
+        logger.info("Starting detector main loop")
         while self.is_running:
-            # Check if window was closed
-            if cv2.getWindowProperty(self.window_name, cv2.WND_PROP_VISIBLE) < 1:
-                self.command_queue.put("STOP")
-                break
-
-            # Read frame from camera
-            ret, frame = self.cap.read()
-            if not ret or frame is None:
-                print("Failed to read frame from camera")
-                break
-
-            if self.command_queue and not self.command_queue.qsize() == 0:
-                command = self.command_queue.get()
-                print(f"Received command: {command}")
-                if command == "CALIBRATE":
-                    self.calibrate(frame)
-                    self.command_queue.task_done()  # Mark command as completed
-                elif command == "STOP":
-                    self.is_running = False
-                    self.command_queue.task_done()  # Mark command as completed
+            try:
+                # Check if window was closed
+                if cv2.getWindowProperty(self.window_name, cv2.WND_PROP_VISIBLE) < 1:
+                    self.command_queue.put("STOP")
                     break
-            
-            # Process frame and get moments
-            processed, moments = self.find_bright_region(frame)
-            
-            # Get bright point from moments
-            bright_point = self.get_bright_point(moments)
-            
-            # Calculate vector from bright point
-            current_vector = self.calculate_vector(bright_point)
-            if self.vector_queue:
-                self.vector_queue.put(current_vector)
-            
-            # Prepare and show display
-            display = self.prepare_display(frame, processed, bright_point, current_vector, moments)
-            cv2.imshow(self.window_name, display)
 
-            # Handle keyboard input
-            key = cv2.waitKeyEx(1) if os.name == 'nt' else cv2.waitKey(1)
-            if key != -1 and not self.handle_key(key):
+                # Read frame from camera
+                ret, frame = self.cap.read()
+                if not ret or frame is None:
+                    logger.error("Failed to read frame from camera")
+                    break
+
+                if self.command_queue and not self.command_queue.qsize() == 0:
+                    command = self.command_queue.get()
+                    logger.info(f"Processing command: {command}")
+                    if command == "CALIBRATE":
+                        self.calibrate(frame)
+                        self.command_queue.task_done()
+                    elif command == "STOP":
+                        self.is_running = False
+                        self.command_queue.task_done()
+                        break
+                
+                # Process frame and get moments
+                processed, moments = self.find_bright_region(frame)
+                
+                # Get bright point from moments
+                bright_point = self.get_bright_point(moments)
+                
+                # Calculate vector from bright point
+                current_vector = self.calculate_vector(bright_point)
+                
+                # Only send vector if we have a calibrated region
+                if self.vector_queue and self.state['center'] is not None:
+                    self.vector_queue.put(current_vector)
+                
+                # Prepare and show display
+                display = self.prepare_display(frame, processed, bright_point, current_vector, moments)
+                cv2.imshow(self.window_name, display)
+
+                # Handle keyboard input
+                key = cv2.waitKeyEx(1) if os.name == 'nt' else cv2.waitKey(1)
+                if key != -1 and not self.handle_key(key):
+                    break
+
+            except Exception as e:
+                logger.error(f"Error in detector loop: {e}", exc_info=True)
                 break
 
+        logger.info("Detector main loop ended")
         self.cleanup()
 
     def calculate_vector(self, bright_point):
@@ -316,12 +331,12 @@ class BrightnessDetector:
         try:
             processed, moments = self.find_bright_region(frame)
             if moments is None:
-                print("No bright regions found")
+                logger.error("No bright regions found")
                 return
             
             bright_point = self.get_bright_point(moments)
             if bright_point is None:
-                print("Invalid moments")
+                logger.error("Invalid moments")
                 return
             
             # Calculate radius based on contour area
@@ -332,10 +347,10 @@ class BrightnessDetector:
             self.state['center'] = bright_point
             self.state['radius'] = radius
             
-            print(f"Calibrated at {bright_point} with radius {radius}")
+            logger.info(f"Calibrated at {bright_point} with radius {radius}")
             
         except Exception as e:
-            print(f"Error in calibrate: {e}")
+            logger.error(f"Error in calibrate: {e}")
 
 def main():
     # For testing
