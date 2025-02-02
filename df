@@ -1,0 +1,10 @@
+[0;1;32m●[0m flambe.service - Flambe Application
+     Loaded: loaded (]8;;file://raspberrypi/etc/systemd/system/flambe.service/etc/systemd/system/flambe.service]8;;; [0;1;32menabled[0m; preset: [0;1;32menabled[0m)
+     Active: [0;1;32mactive (running)[0m since Sun 2025-02-02 04:46:59 GMT; 270ms ago
+   Main PID: 2707 (flambe)
+      Tasks: 1 (limit: 166)
+        CPU: 162ms
+     CGroup: /system.slice/flambe.service
+             └─[0;38;5;245m2707 /home/phil/Flambe/dist/linux/flambe[0m
+
+Feb 02 04:46:59 raspberrypi systemd[1]: Started flambe.service - Flambe Application.
