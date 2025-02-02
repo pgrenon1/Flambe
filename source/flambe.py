@@ -14,6 +14,7 @@ import sys
 import logging
 import os
 from logging_config import setup_module_logger
+import argparse
 
 @dataclass
 class Connection:
@@ -49,9 +50,14 @@ def setup_logging():
     return logger
 
 class FlambeApp:
-    def __init__(self, root):
+    def __init__(self, root, ip_camera_args=None):
         self.logger = setup_module_logger('flambe')
         self.logger.info("Starting Flambe application")
+        
+        # Store IP camera args for later use
+        self.ip_camera_args = ip_camera_args
+        if ip_camera_args:
+            self.logger.info(f"IP camera args provided: {ip_camera_args}")
         
         if hasattr(sys, '_MEIPASS'):
             self.logger.info("Running as frozen executable")
@@ -555,8 +561,12 @@ class FlambeApp:
             values = [f"{idx}: {name}" for idx, name in self.camera_options]
             self.selected_camera.configure(values=values)
             
-            # Set default camera
-            if self.cameras:
+            # Set default camera based on args or first available
+            if self.ip_camera_args:
+                ip, port = self.ip_camera_args
+                self.selected_camera.set(f"ip:{ip}:{port}")
+                self.custom_camera_frame.pack_forget()
+            elif self.cameras:
                 self.default_camera = values[0]
                 self.selected_camera.set(self.default_camera)
                 self.custom_camera_frame.pack_forget()
@@ -608,8 +618,25 @@ class FlambeApp:
                 self.logger.error(f"Error sending calibrate command: {e}")
 
 def main():
+    # Setup argument parser
+    parser = argparse.ArgumentParser(description='Flambe Application')
+    parser.add_argument('--ip', help='IP camera address and port (e.g. 192.168.0.123:8080). Default port is 8080 if not provided.')
+    
+    # Parse arguments
+    args = parser.parse_args()
+    
+    # Split IP and port if provided
+    ip_camera_args = None
+    if args.ip:
+        try:
+            ip, port = args.ip.split(':')
+            ip_camera_args = (ip, port)
+        except ValueError:
+            # If no port provided, use default 8080
+            ip_camera_args = (args.ip, '8080')
+    
     root = tk.Tk()
-    app = FlambeApp(root)
+    app = FlambeApp(root, ip_camera_args=ip_camera_args)
     root.protocol("WM_DELETE_WINDOW", app.cleanup)
     root.mainloop()
 
