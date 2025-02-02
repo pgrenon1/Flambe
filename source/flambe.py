@@ -50,7 +50,7 @@ def setup_logging():
     return logger
 
 class FlambeApp:
-    def __init__(self, root, ip_camera_args=None):
+    def __init__(self, root, ip_camera_args=None, auto_start=False):
         self.logger = setup_module_logger('flambe')
         self.logger.info("Starting Flambe application")
         
@@ -67,6 +67,14 @@ class FlambeApp:
         self.setup_window(root)
         self.setup_state()
         self.setup_ui()
+        
+        # Auto-start if requested
+        if auto_start:
+            self.logger.info("Auto-start requested")
+            # Start server first
+            self.root.after(500, self.start_server)
+            # Then start brightness detection
+            self.root.after(1500, self.start_brightness_detection)
     
     def setup_window(self, root):
         """Initialize the main window"""
@@ -620,23 +628,26 @@ class FlambeApp:
 def main():
     # Setup argument parser
     parser = argparse.ArgumentParser(description='Flambe Application')
-    parser.add_argument('--ip', help='IP camera address and port (e.g. 192.168.0.123:8080). Default port is 8080 if not provided.')
+    parser.add_argument('--camera-ip', help='IP camera address and port (e.g. 192.168.0.123:8080). Default port is 8080 if not provided.')
+    parser.add_argument('--auto-start', action='store_true', help='Automatically start brightness detection and server on launch')
+    parser.add_argument('--server-ip', default='127.0.0.1', help='Server IP address (default: 127.0.0.1)')
+    parser.add_argument('--server-port', default='12345', help='Server port (default: 12345)')
     
     # Parse arguments
     args = parser.parse_args()
     
     # Split IP and port if provided
     ip_camera_args = None
-    if args.ip:
+    if args.camera_ip:
         try:
-            ip, port = args.ip.split(':')
+            ip, port = args.camera_ip.split(':')
             ip_camera_args = (ip, port)
         except ValueError:
             # If no port provided, use default 8080
-            ip_camera_args = (args.ip, '8080')
+            ip_camera_args = (args.camera_ip, '8080')
     
     root = tk.Tk()
-    app = FlambeApp(root, ip_camera_args=ip_camera_args)
+    app = FlambeApp(root, ip_camera_args=ip_camera_args, auto_start=args.auto_start)
     root.protocol("WM_DELETE_WINDOW", app.cleanup)
     root.mainloop()
 
