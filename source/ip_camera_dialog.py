@@ -83,18 +83,18 @@ class IPCameraDialog:
 
     def setup_window(self):
         """Setup the dialog window"""
-        self.title("IP Camera Connection")
-        self.resizable(False, False)
+        self.dialog.title("IP Camera Connection")
+        self.dialog.resizable(False, False)
         
         # Set icon (cross-platform)
         try:
             # Windows
-            self.iconbitmap('./assets/fire.ico')
+            self.dialog.iconbitmap('./assets/fire.ico')
         except:
             try:
                 # Linux/Unix
                 icon_img = tk.PhotoImage(file='./assets/fire.png')
-                self.iconphoto(True, icon_img)
+                self.dialog.iconphoto(True, icon_img)
             except:
                 logger.warning("Could not load dialog icon") 
 
