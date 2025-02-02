@@ -5,3 +5,4 @@ numpy
 cv2-enumerate-cameras
 pyinstaller
 dnspython
+eventlet

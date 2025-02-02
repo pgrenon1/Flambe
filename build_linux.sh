@@ -83,7 +83,6 @@ else
     sudo systemctl start flambe.service
     echo "[INFO] Service status:"
     systemctl status flambe.service
-    echo "Press q to continue..."
 fi
 
 echo "[INFO] Build complete! Executable is in dist/linux/flambe" 
