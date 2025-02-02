@@ -15,6 +15,7 @@ import logging
 import os
 from logging_config import setup_module_logger
 import argparse
+from flambe_headless import FlambeAppHeadless
 
 @dataclass
 class Connection:
@@ -632,24 +633,20 @@ def main():
     parser.add_argument('--auto-start', action='store_true', help='Automatically start brightness detection and server on launch')
     parser.add_argument('--server-ip', default='127.0.0.1', help='Server IP address (default: 127.0.0.1)')
     parser.add_argument('--server-port', default='12345', help='Server port (default: 12345)')
+    parser.add_argument('--headless', action='store_true', help='Run in headless mode without GUI')
     
     # Parse arguments
     args = parser.parse_args()
     
-    # Split IP and port if provided
-    ip_camera_args = None
-    if args.camera_ip:
-        try:
-            ip, port = args.camera_ip.split(':')
-            ip_camera_args = (ip, port)
-        except ValueError:
-            # If no port provided, use default 8080
-            ip_camera_args = (args.camera_ip, '8080')
-    
-    root = tk.Tk()
-    app = FlambeApp(root, ip_camera_args=ip_camera_args, auto_start=args.auto_start)
-    root.protocol("WM_DELETE_WINDOW", app.cleanup)
-    root.mainloop()
+    if args.headless:
+        # Run without GUI
+        app = FlambeAppHeadless(args)
+    else:
+        # Run with GUI
+        root = tk.Tk()
+        app = FlambeApp(root, ip_camera_args=(args.camera_ip.split(':') if args.camera_ip else None), auto_start=args.auto_start)
+        root.protocol("WM_DELETE_WINDOW", app.cleanup)
+        root.mainloop()
 
 if __name__ == "__main__":
     main()
