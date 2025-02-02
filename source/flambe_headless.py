@@ -73,10 +73,10 @@ class FlambeAppHeadless:
             self.command_queue = multiprocessing.JoinableQueue()
             self.vector_queue = multiprocessing.Queue()
             
-            # Start detector in a separate process
+            # Start detector in a separate process with headless=True
             self.detector_process = multiprocessing.Process(
                 target=BrightnessDetector.run_detector,
-                args=(camera_arg, self.command_queue, self.vector_queue)
+                args=(camera_arg, self.command_queue, self.vector_queue, True)
             )
             self.detector_process.start()
             

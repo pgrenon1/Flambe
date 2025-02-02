@@ -59,10 +59,10 @@ class ImageFilter:
 
 class BrightnessDetector:
     @staticmethod
-    def run_detector(camera_arg, command_queue, vector_queue):
+    def run_detector(camera_arg, command_queue, vector_queue, headless=False):
         try:
-            logger.info(f"Starting detector with camera {camera_arg}")
-            detector = BrightnessDetector(camera_arg, command_queue, vector_queue)
+            logger.info(f"Starting detector with camera {camera_arg} {'in headless mode' if headless else ''}")
+            detector = BrightnessDetector(camera_arg, command_queue, vector_queue, headless)
             detector.run()
         except Exception as e:
             logger.error(f"Detector error: {e}", exc_info=True)
@@ -73,13 +73,13 @@ class BrightnessDetector:
             except:
                 pass
 
-    def __init__(self, camera_arg, command_queue, vector_queue):
+    def __init__(self, camera_arg, command_queue, vector_queue, headless=False):
         logger.info("Initializing BrightnessDetector")
+        self.headless = headless
         self.setup_state(camera_arg, command_queue, vector_queue)
-        cv2.namedWindow(self.window_name, cv2.WINDOW_NORMAL)
-        cv2.setMouseCallback(self.window_name, self.on_mouse)
-        # icon_path = os.path.abspath('./assets/fire.ico')
-        # set_window_icon(self.window_name, icon_path)
+        if not headless:
+            cv2.namedWindow(self.window_name, cv2.WINDOW_NORMAL)
+            cv2.setMouseCallback(self.window_name, self.on_mouse)
         self.setup_camera()
 
     def setup_state(self, camera_arg, command_queue, vector_queue):
@@ -98,6 +98,7 @@ class BrightnessDetector:
         self.is_running = True
 
     def setup_camera(self):
+        """Initialize camera capture"""
         if isinstance(self.camera_arg, str) and self.camera_arg.startswith("ip:"):
             _, ip, port = self.camera_arg.split(":")
             self.cap, success = connect_ip_camera(ip, port)
@@ -111,9 +112,10 @@ class BrightnessDetector:
         self.frame_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.frame_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         
-        # Configure window properties
-        cv2.setWindowProperty(self.window_name, cv2.WND_PROP_ASPECT_RATIO, cv2.WINDOW_KEEPRATIO)
-        cv2.resizeWindow(self.window_name, self.frame_width, self.frame_height)
+        # Configure window properties only in GUI mode
+        if not self.headless:
+            cv2.setWindowProperty(self.window_name, cv2.WND_PROP_ASPECT_RATIO, cv2.WINDOW_KEEPRATIO)
+            cv2.resizeWindow(self.window_name, self.frame_width, self.frame_height)
 
     def on_mouse(self, event, x, y, flags, param):
         # Scale coordinates back to original frame size
@@ -216,8 +218,8 @@ class BrightnessDetector:
         logger.info("Starting detector main loop")
         while self.is_running:
             try:
-                # Check if window was closed
-                if cv2.getWindowProperty(self.window_name, cv2.WND_PROP_VISIBLE) < 1:
+                # Check if window was closed (only in GUI mode)
+                if not self.headless and cv2.getWindowProperty(self.window_name, cv2.WND_PROP_VISIBLE) < 1:
                     self.command_queue.put("STOP")
                     break
 
@@ -227,6 +229,7 @@ class BrightnessDetector:
                     logger.error("Failed to read frame from camera")
                     break
 
+                # Process commands
                 if self.command_queue and not self.command_queue.qsize() == 0:
                     command = self.command_queue.get()
                     logger.info(f"Processing command: {command}")
@@ -240,25 +243,20 @@ class BrightnessDetector:
                 
                 # Process frame and get moments
                 processed, moments = self.find_bright_region(frame)
-                
-                # Get bright point from moments
                 bright_point = self.get_bright_point(moments)
-                
-                # Calculate vector from bright point
                 current_vector = self.calculate_vector(bright_point)
                 
-                # Only send vector if we have a calibrated region
+                # Send vector if calibrated
                 if self.vector_queue and self.state['center'] is not None:
                     self.vector_queue.put(current_vector)
                 
-                # Prepare and show display
-                display = self.prepare_display(frame, processed, bright_point, current_vector, moments)
-                cv2.imshow(self.window_name, display)
-
-                # Handle keyboard input
-                key = cv2.waitKeyEx(1) if os.name == 'nt' else cv2.waitKey(1)
-                if key != -1 and not self.handle_key(key):
-                    break
+                # Display only in GUI mode
+                if not self.headless:
+                    display = self.prepare_display(frame, processed, bright_point, current_vector, moments)
+                    cv2.imshow(self.window_name, display)
+                    key = cv2.waitKeyEx(1) if os.name == 'nt' else cv2.waitKey(1)
+                    if key != -1 and not self.handle_key(key):
+                        break
 
             except Exception as e:
                 logger.error(f"Error in detector loop: {e}", exc_info=True)
@@ -279,6 +277,9 @@ class BrightnessDetector:
 
     def prepare_display(self, frame, processed, bright_point, current_vector, moments=None):
         """Prepare the display frame with all overlays"""
+        if self.headless:
+            return None  # No display needed in headless mode
+        
         if self.state['show_filtered'] and processed is not None:
             display = cv2.cvtColor(processed, cv2.COLOR_GRAY2BGR)
             self.add_info_overlay(display, current_vector, moments)
@@ -323,7 +324,8 @@ class BrightnessDetector:
         """Clean up resources"""
         if self.cap:
             self.cap.release()
-        cv2.destroyWindow(self.window_name)
+        if not self.headless:
+            cv2.destroyWindow(self.window_name)
         self.is_running = False
 
     def calibrate(self, frame):
