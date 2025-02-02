@@ -14,6 +14,19 @@ source venv/bin/activate
 echo "[INFO] Installing/Upgrading pip tools..."
 python3 -m pip install --upgrade pip wheel setuptools
 
+echo "[INFO] Installing system dependencies..."
+sudo apt-get update
+sudo apt-get install -y \
+    python3-dev \
+    libpython3-dev \
+    python3-venv \
+    python3-pip \
+    libatlas-base-dev \
+    libjasper-dev \
+    libqt4-test \
+    libhdf5-dev \
+    libhdf5-serial-dev
+
 echo "[INFO] Installing requirements..."
 pip install -r requirements.txt
 pip install pyinstaller
@@ -25,6 +38,8 @@ pyinstaller --onefile \
     --hidden-import=engineio.async_drivers.threading \
     --hidden-import=engineio.async_drivers \
     --hidden-import=socketio \
+    --runtime-tmpdir /tmp \
+    --add-binary '/usr/lib/python3.11/lib-dynload/*:lib-dynload' \
     source/flambe.py
 
 echo "[INFO] Setting up distribution folder..."
