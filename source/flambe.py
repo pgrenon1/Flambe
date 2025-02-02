@@ -140,7 +140,7 @@ class FlambeApp:
         ip_frame = tk.Frame(server_frame)
         ip_frame.pack(fill="x", pady=2)
         tk.Label(ip_frame, text="IP:").pack(side=tk.LEFT)
-        self.ip_var = tk.StringVar(value=self.server_ip or "127.0.0.1")
+        self.ip_var = tk.StringVar(value="127.0.0.1" if self.server_ip is None else self.server_ip)
         self.ip_entry = ttk.Entry(ip_frame, textvariable=self.ip_var)
         self.ip_entry.pack(side=tk.LEFT, padx=(5, 0), fill="x", expand=True)
         
@@ -148,7 +148,7 @@ class FlambeApp:
         port_frame = tk.Frame(server_frame)
         port_frame.pack(fill="x", pady=2)
         tk.Label(port_frame, text="Port:").pack(side=tk.LEFT)
-        self.port_var = tk.StringVar(value=self.server_port or "12345")
+        self.port_var = tk.StringVar(value="12345" if self.server_port is None else self.server_port)
         self.port_entry = ttk.Entry(port_frame, textvariable=self.port_var)
         self.port_entry.pack(side=tk.LEFT, padx=(5, 0), fill="x", expand=True)
         
@@ -576,15 +576,24 @@ class FlambeApp:
             }
             
             # Camera section
+            camera_selection = self.selected_camera.get()
             config['Camera'] = {
-                'selection': self.selected_camera.get(),
-                'custom_index': self.custom_camera_entry.get()
+                'camera_ip': '',
+                'camera_port': '8080',
+                'camera_index': ''
             }
             
-            config_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config')
-            os.makedirs(config_dir, exist_ok=True)
+            # Parse camera selection to populate correct fields
+            if camera_selection.startswith("ip:"):
+                # Format is "ip:192.168.0.197:8080"
+                _, ip, port = camera_selection.split(":")
+                config['Camera']['camera_ip'] = ip
+                config['Camera']['camera_port'] = port
+            elif not camera_selection.startswith("custom:"):
+                # Regular camera index
+                config['Camera']['camera_index'] = camera_selection.split(':')[0]
             
-            config_path = os.path.join(config_dir, 'flambe.ini')
+            config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.ini')
             with open(config_path, 'w') as f:
                 config.write(f)
             
@@ -593,32 +602,64 @@ class FlambeApp:
             self.logger.error(f"Error saving configuration: {e}")
 
 def main():
+    # Setup logger first
+    logger = setup_module_logger('flambe')
+
     # Setup argument parser
     parser = argparse.ArgumentParser(description='Flambe Application')
     parser.add_argument('--config', 
-                       help='Path to config file (defaults to config/flambe.ini)',
-                       default=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config', 'flambe.ini'))
+                       help='Path to config file (defaults to config.ini if no path given)',
+                       nargs='?',
+                       const=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.ini'))
     
     # Parse arguments
     args = parser.parse_args()
+    logger.info(f"Parsed arguments: config={args.config}")
     
-    # Load configuration
+    # Load configuration only if --config was specified
     config = configparser.ConfigParser()
     camera_ip = None
     server_ip = None
     server_port = None
     
-    if os.path.exists(args.config):
+    if args.config:
         try:
+            if not os.path.exists(args.config):
+                raise FileNotFoundError(f"Config file not found: {args.config}")
+            
+            logger.info(f"Reading config from: {args.config}")
             config.read(args.config)
-            if 'Camera' in config and 'ip' in config['Camera']:
-                camera_ip = f"ip:{config['Camera']['ip']}:{config['Camera'].get('port', '8080')}"
+            
+            # Log config sections
+            logger.info(f"Found config sections: {config.sections()}")
+            
+            if 'Camera' in config:
+                logger.info("Processing Camera section")
+                camera_ip = config['Camera'].get('camera_ip')
+                camera_port = config['Camera'].get('camera_port', '8080')
+                if camera_ip:
+                    camera_ip = f"{camera_ip}:{camera_port}"
+                    logger.info(f"Found camera IP configuration: {camera_ip}")
+                else:
+                    camera_index = config['Camera'].get('camera_index')
+                    if camera_index:
+                        camera_ip = camera_index
+                        logger.info(f"Found camera index configuration: {camera_index}")
+                    else:
+                        logger.info("No camera configuration found")
+            
             if 'Server' in config:
+                logger.info("Processing Server section")
                 server_ip = config['Server'].get('ip')
                 server_port = config['Server'].get('port')
+                logger.info(f"Found server configuration - IP: {server_ip}, Port: {server_port}")
+            
         except Exception as e:
-            logger = setup_module_logger('flambe')
-            logger.error(f"Error reading config file: {e}")
+            logger.error(f"Error reading config file: {e}", exc_info=True)
+    else:
+        logger.info("No config file specified, using default values")
+    
+    logger.info(f"Final configuration - Camera IP: {camera_ip}, Server IP: {server_ip}, Server Port: {server_port}")
     
     root = tk.Tk()
     app = FlambeApp(root, camera_ip=camera_ip, server_ip=server_ip, server_port=server_port)

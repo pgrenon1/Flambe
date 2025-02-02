@@ -1,0 +1,31 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Flambe: No Config",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "source/flambe.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Flambe: Default Config",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "source/flambe.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": ["--config"]
+        },
+        {
+            "name": "Flambe: Custom Config",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "source/flambe.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": ["--config", "config.ini"]
+        }
+    ]
+} 
