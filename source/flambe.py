@@ -119,25 +119,37 @@ class FlambeApp:
     
     def setup_camera_selection(self):
         """Setup camera selection UI"""
-        # Create camera selection frame
-        camera_frame = tk.LabelFrame(self.frame, text="Select Camera", padx=10, pady=5)
+        # Create camera config frame with title
+        camera_frame = tk.LabelFrame(self.frame, text="Camera Configuration", padx=10, pady=5)
         camera_frame.pack(pady=10, fill="x")
         
-        # Add loading label
-        self.loading_label = tk.Label(camera_frame, text="Detecting Cameras...", font=('Arial', 10))
-        self.loading_label.pack(pady=5)
+        # Inner frame for camera selection
+        self.camera_frame = tk.Frame(camera_frame)
+        self.camera_frame.pack(fill="x")
         
-        # Create camera selection dropdown (initially empty)
-        self.selected_camera = ttk.Combobox(
-            camera_frame,
-            values=[],
-            state="disabled",
-            width=30
-        )
-        self.selected_camera.pack(pady=10)
+        # Label
+        label = tk.Label(self.camera_frame, text="Camera:")
+        label.pack(side=tk.LEFT)
         
-        # Bind camera selection change
+        # Combobox for camera selection
+        self.selected_camera = ttk.Combobox(self.camera_frame, width=30, state="readonly")
+        self.selected_camera.pack(side=tk.LEFT, padx=5, fill="x", expand=True)
         self.selected_camera.bind('<<ComboboxSelected>>', self.on_camera_change)
+        
+        # Custom camera index entry (initially hidden)
+        self.custom_camera_frame = tk.Frame(camera_frame)  # Changed parent to camera_frame
+        self.custom_camera_frame.pack(pady=(2, 0), fill="x")
+        tk.Label(self.custom_camera_frame, text="Index:").pack(side=tk.LEFT)
+        self.custom_camera_entry = ttk.Entry(self.custom_camera_frame, width=30)
+        self.custom_camera_entry.pack(side=tk.LEFT, padx=5, fill="x", expand=True)
+        self.custom_camera_entry.insert(0, "0")
+        
+        # Add validation for numbers only
+        vcmd = (self.root.register(self.validate_camera_index), '%P')
+        self.custom_camera_entry.configure(validate='key', validatecommand=vcmd)
+        
+        # Initially hide custom entry
+        self.custom_camera_frame.pack_forget()
     
     def setup_server_config(self):
         """Setup server configuration UI"""
@@ -231,12 +243,7 @@ class FlambeApp:
     
     def start_brightness_detection(self):
         """Start brightness detection"""
-        camera_selection = self.selected_camera.get()
-        
-        if (camera_selection.startswith("ip:")):
-            camera_arg = camera_selection
-        else:
-            camera_arg = camera_selection.split(':')[0]
+        camera_arg = self.get_camera_index()
         
         try:
             # Create fresh queues
@@ -249,7 +256,6 @@ class FlambeApp:
                 args=(camera_arg, self.command_queue, self.vector_queue)
             )
             self.detector_process.start()
-            
             
             self.detector_running = True
             self.brightness_button.config(text="Stop flambe", fg="red")
@@ -318,8 +324,14 @@ class FlambeApp:
     
     def on_camera_change(self, event):
         """Handle camera selection change"""
-        if self.selected_camera.get().startswith("ip:"):
+        selection = self.selected_camera.get()
+        if selection.startswith("ip:"):
             self.show_ip_camera_dialog()
+            self.custom_camera_frame.pack_forget()
+        elif selection.startswith("custom:"):
+            self.custom_camera_frame.pack()
+        else:
+            self.custom_camera_frame.pack_forget()
     
     def show_ip_camera_dialog(self):
         """Show dialog for IP camera connection"""
@@ -529,24 +541,56 @@ class FlambeApp:
 
     def detect_cameras(self):
         """Detect cameras and update UI"""
+        try:
+            self.cameras = enumerate_cameras(cv2.CAP_ANY)
+            
+            # Setup camera options
+            self.camera_options = [(info.index, info.name) for info in self.cameras]
+            self.camera_options.extend([
+                ('ip', 'Connect IP Camera...'),
+                ('custom', '...')
+            ])
+            
+            # Update combobox values
+            values = [f"{idx}: {name}" for idx, name in self.camera_options]
+            self.selected_camera.configure(values=values)
+            
+            # Set default camera
+            if self.cameras:
+                self.default_camera = values[0]
+                self.selected_camera.set(self.default_camera)
+                self.custom_camera_frame.pack_forget()
+            else:
+                self.logger.warning("No cameras detected")
+                self.selected_camera.set("custom: ...")
+                self.custom_camera_frame.pack()
+                
+        except Exception as e:
+            self.logger.error(f"Error detecting cameras: {e}")
+            self.selected_camera.set("custom: ...")
+            self.custom_camera_frame.pack()
         
-        self.cameras = enumerate_cameras(cv2.CAP_ANY)
-
-        # setup the camera options based on camerainfos
-        self.camera_options = [(info.index, info.name) for info in self.cameras]
-        self.camera_options.append(('ip', 'Connect IP Camera...'))
-        
-        # Update combobox values
-        values = [f"{idx}: {name}" for idx, name in self.camera_options]
-        self.selected_camera.configure(values=values)
-        
-        # Set default camera
-        self.default_camera = values[0]
-        self.selected_camera.set(self.default_camera)
-        
-        # Remove loading label and enable UI
-        self.loading_label.destroy()
         self.set_ui_enabled(True)
+
+    def validate_camera_index(self, value):
+        """Validate camera index input to only allow numbers"""
+        if value == "":
+            return True
+        try:
+            int(value)
+            return True
+        except ValueError:
+            return False
+
+    def get_camera_index(self):
+        """Get camera index from either combobox or custom entry"""
+        camera_selection = self.selected_camera.get()
+        if camera_selection.startswith("ip:"):
+            return camera_selection
+        elif camera_selection.startswith("custom:"):
+            return self.custom_camera_entry.get()
+        else:
+            return camera_selection.split(':')[0]
 
     def calibrate(self):
         """Send calibrate command to detector"""
