@@ -448,13 +448,13 @@ class FlambeApp:
         try:
             flask_app = Flask(__name__)
             
-            # Create Socket.IO server with basic configuration
+            # Create Socket.IO server with logging configuration
             self.logger.info("Creating Socket.IO server")
             self.sio = socketio.Server(
-                async_mode='threading',  # Explicitly set async mode
+                async_mode='threading',
                 cors_allowed_origins='*',
-                logger=self.logger,
-                engineio_logger=self.logger
+                logger=False,  # Disable Socket.IO's default logging
+                engineio_logger=False  # Disable Engine.IO's default logging
             )
             
             self.app = socketio.WSGIApp(self.sio, flask_app)
