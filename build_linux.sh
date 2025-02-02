@@ -55,11 +55,20 @@ WorkingDirectory=$(pwd)/dist/linux
 WantedBy=graphical.target
 EOL
 
-echo "[INFO] Enabling and starting service..."
-sudo systemctl daemon-reload
-sudo systemctl enable flambe.service
-sudo systemctl start flambe.service
+if [ "$1" = "--no-service" ]; then
+    echo "[INFO] Disabling flambe service..."
+    sudo systemctl stop flambe.service
+    sudo systemctl disable flambe.service
+    sudo systemctl daemon-reload
+    echo "[INFO] Service disabled and removed"
+else
+    echo "[INFO] Enabling and starting service..."
+    sudo systemctl daemon-reload
+    sudo systemctl enable flambe.service
+    sudo systemctl start flambe.service
+    echo "[INFO] Service status:"
+    systemctl status flambe.service
+    echo "Press q to continue..."
+fi
 
-echo "[INFO] Build complete! Executable is in dist/linux/flambe"
-echo "[INFO] Service status:"
-systemctl status flambe.service 
+echo "[INFO] Build complete! Executable is in dist/linux/flambe" 
