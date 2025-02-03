@@ -114,8 +114,16 @@ class BrightnessDetector:
         
         # Configure window properties only in GUI mode
         if not self.headless:
-            cv2.setWindowProperty(self.window_name, cv2.WND_PROP_ASPECT_RATIO, cv2.WINDOW_KEEPRATIO)
+            # Create window with proper flags for Linux
+            cv2.namedWindow(self.window_name, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
+            # Set the initial window size
             cv2.resizeWindow(self.window_name, self.frame_width, self.frame_height)
+            # Force aspect ratio
+            if os.name == 'posix':  # Linux specific
+                cv2.setWindowProperty(self.window_name, cv2.WND_PROP_ASPECT_RATIO, cv2.WINDOW_KEEPRATIO)
+                # Ensure window is properly sized and centered
+                cv2.moveWindow(self.window_name, 0, 0)
+                cv2.resizeWindow(self.window_name, self.frame_width, self.frame_height)
 
     def on_mouse(self, event, x, y, flags, param):
         # Scale coordinates back to original frame size
@@ -293,11 +301,15 @@ class BrightnessDetector:
         if rect is None:
             return display
         
-        # Scale coordinates to match original frame size
+        # Scale coordinates for mouse input
         self.scale_x = self.frame_width / rect[2]
         self.scale_y = self.frame_height / rect[3]
         
-        # Resize display to window size
+        # On Linux, maintain original size
+        if os.name == 'posix':
+            return display
+        
+        # Resize only on other platforms if needed
         return cv2.resize(display, (rect[2], rect[3]))
 
     def add_info_overlay(self, display, current_vector, moments=None):
