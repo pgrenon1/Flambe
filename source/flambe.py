@@ -1,6 +1,4 @@
-import eventlet
 import socketio
-import eventlet.wsgi
 import threading
 import tkinter as tk
 from tkinter import ttk
@@ -567,7 +565,8 @@ class FlambeApp:
     def save_configuration(self):
         """Save current configuration to file"""
         try:
-            config = configparser.ConfigParser()
+            config = configparser.ConfigParser(allow_no_value=True)
+            config.optionxform = str  # Preserve case in options
             
             # Server section
             config['Server'] = {
@@ -575,23 +574,35 @@ class FlambeApp:
                 'port': self.port_var.get()
             }
             
-            # Camera section
-            camera_selection = self.selected_camera.get()
-            config['Camera'] = {
-                'camera_ip': '',
-                'camera_port': '8080',
-                'camera_index': ''
-            }
+            # Camera section with comments
+            config['Camera'] = {}
+            camera_section = config['Camera']
             
-            # Parse camera selection to populate correct fields
+            # Add explanation comment
+            camera_section['# Configuration Guide'] = None
+            camera_section['# To use an IP camera: uncomment camera_ip and camera_port, comment out camera_index'] = None
+            camera_section['# To use a local camera: uncomment camera_index, comment out camera_ip and camera_port'] = None
+            camera_section['# Only one configuration type should be active at a time'] = None
+            camera_section[''] = None  # Empty line for readability
+            
+            camera_selection = self.selected_camera.get()
             if camera_selection.startswith("ip:"):
                 # Format is "ip:192.168.0.197:8080"
                 _, ip, port = camera_selection.split(":")
-                config['Camera']['camera_ip'] = ip
-                config['Camera']['camera_port'] = port
-            elif not camera_selection.startswith("custom:"):
-                # Regular camera index
-                config['Camera']['camera_index'] = camera_selection.split(':')[0]
+                camera_section['camera_ip'] = ip
+                camera_section['camera_port'] = port
+                camera_section['# camera_index'] = '0'  # Commented out index
+            else:
+                # Regular camera index or custom index
+                camera_section['# camera_ip'] = '192.168.0.197'  # Commented out IP
+                camera_section['# camera_port'] = '8080'  # Commented out port
+                
+                if camera_selection.startswith("custom:"):
+                    # Use the custom index from the entry
+                    camera_section['camera_index'] = self.custom_camera_entry.get()
+                else:
+                    # Use the selected camera index
+                    camera_section['camera_index'] = camera_selection.split(':')[0]
             
             config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.ini')
             with open(config_path, 'w') as f:
