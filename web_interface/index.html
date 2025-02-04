@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flambe</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Flambe</h1>
+        
+        <div class="vector-display">
+            <h2>Current Vector</h2>
+            <p>
+                X: <span id="vectorX">0.00</span>
+                Y: <span id="vectorY">0.00</span>
+            </p>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <button id="calibrateBtn" class="control-btn">Calibrate</button>
+                <button id="filterBtn" class="control-btn">Toggle Filter</button>
+            </div>
+            <div class="control-group threshold-controls">
+                <button id="thresholdDownBtn" class="control-btn">◀</button>
+                <div class="threshold-display">
+                    Threshold: <span id="thresholdValue">0.80</span>
+                </div>
+                <button id="thresholdUpBtn" class="control-btn">▶</button>
+            </div>
+        </div>
+
+        <div class="canvas-container">
+            <canvas id="vectorCanvas"></canvas>
+        </div>
+
+        <div class="status">
+            <p>Updates every 50ms</p>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html> 
